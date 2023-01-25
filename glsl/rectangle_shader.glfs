@@ -1,0 +1,75 @@
+#version 150
+
+uniform bool use_video_tex = false;
+uniform sampler2D frame_tex;
+uniform sampler3D video_tex;
+
+in vec4 color_fs;
+in vec2 texcoord_fs;
+in vec4 position_fs;
+uniform int width;
+uniform int height;
+uniform int fst_pixel_idx;
+uniform float aspect;
+uniform float mix_factor = 0.2;
+uniform float border_width = 2.0;
+uniform float border_gamma = 4.0;
+uniform float texcoord_w;
+
+//***** begin interface of fragment.glfs ***********************************
+uniform float gamma = 2.2;
+void finish_fragment(vec4 color);
+//***** end interface of fragment.glfs ***********************************
+
+float texcoord_u_to_pixelcoord_x_f(float u) 
+{ 
+	return u * width + float(fst_pixel_idx); 
+}
+
+float texcoord_v_to_pixelcoord_y_f(float v) 
+{ 
+	return v * height + float(fst_pixel_idx); 
+}
+
+vec2 texcoord_to_pixelcoord_f(vec2 tc) 
+{ 
+	return vec2(texcoord_u_to_pixelcoord_x_f(tc[0]), texcoord_v_to_pixelcoord_y_f(tc[1])); 
+}
+
+void main()
+{
+	vec4 tex_col;
+	if (use_video_tex)
+		tex_col = texture(video_tex, vec3(texcoord_fs, texcoord_w));
+	else
+		tex_col = texture(frame_tex, texcoord_fs);
+	vec2 pix = texcoord_to_pixelcoord_f(texcoord_fs);
+	float min_dist = 100.0;
+	bool is_inside = true;
+	if (pix.x >= position_fs.x)
+		min_dist = min(min_dist, pix.x - position_fs.x);
+	else
+		is_inside = false;
+	
+	if (pix.x <= position_fs.z)
+		min_dist = min(min_dist, position_fs.z - pix.x);
+	else
+		is_inside = false;
+	
+	if (pix.y >= position_fs.y)
+		min_dist = min(min_dist, pix.y - position_fs.y);
+	else
+		is_inside = false;
+	
+	if (pix.y <= position_fs.w)
+		min_dist = min(min_dist, position_fs.w - pix.y);
+	else
+		is_inside = false;
+
+	if (is_inside) {
+		float border_lambda = pow(max(0.0, 1.0 - min(border_width,min_dist)/border_width), border_gamma);
+		float lambda = max(mix_factor, border_lambda);
+		tex_col = mix(tex_col,color_fs,lambda);
+	}
+	finish_fragment(tex_col);
+}

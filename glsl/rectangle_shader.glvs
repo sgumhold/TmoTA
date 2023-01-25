@@ -1,0 +1,18 @@
+#version 330
+
+//***** begin interface of view.glsl ***********************************
+mat4 get_modelview_projection_matrix();
+//***** end interface of view.glsl ***********************************
+
+layout(location = 0) in vec4 position;
+layout(location = 1) in vec4 color;
+
+out vec4 position_gs;
+out vec4 color_gs;
+
+// pass through vertex shader
+void main()
+{
+	color_gs = color;
+	position_gs = position;
+}

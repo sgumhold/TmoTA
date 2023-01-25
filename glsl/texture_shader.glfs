@@ -1,0 +1,90 @@
+#version 150
+
+uniform bool use_video_tex = false;
+uniform sampler2D frame_tex;
+uniform sampler3D video_tex;
+
+in vec4 color_fs;
+in vec2 texcoord_fs;
+
+uniform float min_x;
+uniform float max_x;
+uniform float min_y;
+uniform float max_y;
+uniform bool use_min_x = true;
+uniform bool use_max_x = true;
+uniform bool use_min_y = true;
+uniform bool use_max_y = true;
+uniform int x_over_mode = 0;
+uniform int y_over_mode = 0;
+uniform int width;
+uniform int height;
+uniform int fst_pixel_idx;
+uniform float aspect;
+uniform float mix_factor = 0.2;
+uniform float border_width = 2.0;
+uniform float border_gamma = 4.0;
+uniform float texcoord_w;
+
+//***** begin interface of fragment.glfs ***********************************
+uniform float gamma = 2.2;
+void finish_fragment(vec4 color);
+//***** end interface of fragment.glfs ***********************************
+
+float texcoord_u_to_pixelcoord_x_f(float u) 
+{ 
+	return u * width + float(fst_pixel_idx); 
+}
+
+float texcoord_v_to_pixelcoord_y_f(float v) 
+{ 
+	return v * height + float(fst_pixel_idx); 
+}
+
+vec2 texcoord_to_pixelcoord_f(vec2 tc) 
+{ 
+	return vec2(texcoord_u_to_pixelcoord_x_f(tc[0]), texcoord_v_to_pixelcoord_y_f(tc[1])); 
+}
+
+void main()
+{
+	vec4 tex_col;
+	if (use_video_tex)
+		tex_col = texture(video_tex, vec3(texcoord_fs, texcoord_w));
+	else
+		tex_col = texture(frame_tex, texcoord_fs);
+	vec2 pix = texcoord_to_pixelcoord_f(texcoord_fs);
+	float max_dist = -100.0;
+	if (use_min_x && pix.x < min_x) {
+		max_dist = max(max_dist, min_x - pix.x);
+	}
+	if (use_max_x && pix.x > max_x) {
+		max_dist = max(max_dist, pix.x - max_x);
+	}
+	if (use_min_y && pix.y < min_y) {
+		max_dist = max(max_dist, min_y - pix.y);
+	}
+	if (use_max_y && pix.y > max_y) {
+		max_dist = max(max_dist, pix.y - max_y);
+	}
+	if (max_dist != -100.0) {
+		bool is_over = false;
+		if (max_dist < border_width && max_dist >= 0.0) {
+			if (use_min_x && ((x_over_mode & 1) != 0) && pix.x < min_x)
+				is_over = true;
+			if (use_min_y && ((y_over_mode & 1) != 0) && pix.y < min_y)
+				is_over = true;
+			if (use_max_x && ((x_over_mode & 2) != 0) && pix.x > max_x)
+				is_over = true;
+			if (use_max_y && ((y_over_mode & 2) != 0) && pix.y > max_y)
+				is_over = true;
+		}
+		float bd_gamma = border_gamma;
+		if (is_over)
+			bd_gamma *= 0.3;
+		float border_lambda = pow(max(0.0, 1.0 - min(border_width,max_dist)/border_width), bd_gamma);
+		float lambda = max(mix_factor, border_lambda);
+		tex_col = mix(tex_col,color_fs,lambda);
+	}
+	finish_fragment(tex_col);
+}
