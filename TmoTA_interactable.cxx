@@ -196,8 +196,6 @@ void TmoTA_interactable::finish_frame(cgv::render::context& ctx)
 		ctx.pop_modelview_matrix();
 		ctx.pop_window_transformation_array();
 	}
-
-
 	if (ff.empty()) {
 		cgv::media::font::enumerate_font_names(font_names);
 		for (font_idx = 0; font_idx < font_names.size(); ++font_idx)

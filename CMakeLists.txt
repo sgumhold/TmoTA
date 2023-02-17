@@ -22,7 +22,7 @@ cgv_add_target(TmoTA
 	HEADERS         ${HEADERS}
 	SHADER_SOURCES  ${SHADERS}
 	DEPENDENCIES    cgv_viewer cgv_utils cgv_type cgv_signal cgv_reflect cgv_data cgv_os cgv_base
-					cgv_math cgv_media cgv_gui cgv_render cgv_gl cgv_reflect_types 
+					cgv_math cgv_media cgv_gui cgv_render cgv_gl cgv_reflect_types tt_gl_font
 					cg_ext cg_fltk cmi_io cmf_tt_gl_font
 	ADDITIONAL_CMDLINE_ARGS
 					"config:\"${CMAKE_CURRENT_LIST_DIR}/TmoTA.def\""
