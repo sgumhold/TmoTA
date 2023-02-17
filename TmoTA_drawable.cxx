@@ -120,8 +120,8 @@ void TmoTA_drawable::draw_texture(cgv::render::context& ctx, int object_idx, int
 	tex_prog.set_uniform(ctx, "video_tex", 0);
 	tex_prog.set_uniform(ctx, "frame_tex", 0);
 	tex_prog.set_uniform(ctx, "use_video_tex", use_video_tex);
-	tex_prog.set_uniform(ctx, "border_width", rectangle_border_width);
-	tex_prog.set_uniform(ctx, "border_gamma", border_gamma);
+	tex_prog.set_uniform(ctx, "rectangle_border_width", rectangle_border_width);
+	tex_prog.set_uniform(ctx, "rectangle_border_gamma", rectangle_border_gamma);
 	tex_prog.set_uniform(ctx, "mix_factor", mix_factor);
 	tex_prog.set_uniform(ctx, "use_min_x", use_min_x);
 	tex_prog.set_uniform(ctx, "use_max_x", use_max_x);
@@ -216,7 +216,7 @@ void TmoTA_drawable::draw_rectangles(cgv::render::context& ctx, int object_idx, 
 	rect_prog.set_uniform(ctx, "video_tex", 0);
 	rect_prog.set_uniform(ctx, "frame_tex", 0);
 	rect_prog.set_uniform(ctx, "use_video_tex", use_video_tex);
-	rect_prog.set_uniform(ctx, "border_width", rectangle_border_width);
+	rect_prog.set_uniform(ctx, "rectangle_border_width", rectangle_border_width);
 	rect_prog.set_uniform(ctx, "mix_factor", std::min(0.5f, 2.0f * mix_factor));
 	rect_prog.set_uniform(ctx, "aspect", aspect);
 	rect_prog.set_uniform(ctx, "width", (int)width);
@@ -230,13 +230,13 @@ void TmoTA_drawable::draw_rectangles(cgv::render::context& ctx, int object_idx, 
 	cgv::render::attribute_array_binding::enable_global_array(ctx, ci);
 
 	if (!P.empty()) {
-		rect_prog.set_uniform(ctx, "border_gamma", border_gamma);
+		rect_prog.set_uniform(ctx, "rectangle_border_gamma", rectangle_border_gamma);
 		cgv::render::attribute_array_binding::set_global_attribute_array(ctx, pi, P);
 		cgv::render::attribute_array_binding::set_global_attribute_array(ctx, ci, C);
 		glDrawArrays(GL_POINTS, 0, (GLsizei)P.size());
 	}
 	if (!P2.empty()) {
-		rect_prog.set_uniform(ctx, "border_gamma", 0.3f*border_gamma);
+		rect_prog.set_uniform(ctx, "rectangle_border_gamma", 0.3f*rectangle_border_gamma);
 		cgv::render::attribute_array_binding::set_global_attribute_array(ctx, pi, P2);
 		cgv::render::attribute_array_binding::set_global_attribute_array(ctx, ci, C2);
 		glDrawArrays(GL_POINTS, 0, (GLsizei)P2.size());
@@ -335,7 +335,7 @@ TmoTA_drawable::TmoTA_drawable() : video_tex("[R,G,B]"), frame_tex("[R,G,B]")
 	mix_factor = 0.3f;
 
 	rectangle_border_width = 8.0f;
-	border_gamma = 1.5f;
+	rectangle_border_gamma = 1.5f;
 }
 
 /// called once to init render objects
@@ -436,7 +436,7 @@ void TmoTA_drawable::init_frame(cgv::render::context& ctx)
 	if (use_video_tex && nr_video_tex_frames < nr_read_frames) {
 		video_data.set_ptr(video_storage.get_data_ptr<uint8_t>()+nr_video_tex_frames*frame_size);
 		video_format.set_depth(unsigned(nr_read_frames - nr_video_tex_frames));
-		video_tex.replace(ctx, 0, 0, nr_video_tex_frames, video_data, 0);
+		video_tex.replace(ctx, 0, 0, int(nr_video_tex_frames), video_data, 0);
 		nr_video_tex_frames = nr_read_frames;
 	}
 	// while not all files have been read, read one more per frame
@@ -463,12 +463,12 @@ void TmoTA_drawable::draw(cgv::render::context& ctx, int object_idx, int appeara
 	int w = ctx.get_width();
 	int h = ctx.get_height();
 	if (vertical_viewport_split) {
-		video_viewport = ivec4(border_width, border_width, w - 3 * border_width - object_viewport_extent, h - 2 * border_width);
-		object_viewport = ivec4(2 * border_width + video_viewport[2], border_width, object_viewport_extent, video_viewport[3]);
+		video_viewport = ivec4(panel_border_width, panel_border_width, w - 3 * panel_border_width - object_viewport_extent, h - 2 * panel_border_width);
+		object_viewport = ivec4(2 * panel_border_width + video_viewport[2], panel_border_width, object_viewport_extent, video_viewport[3]);
 	}
 	else {
-		video_viewport = ivec4(border_width, 2 * border_width + object_viewport_extent, w - 2 * border_width, h - object_viewport_extent - 3 * border_width);
-		object_viewport = ivec4(border_width, border_width, video_viewport[2], object_viewport_extent);
+		video_viewport = ivec4(panel_border_width, 2 * panel_border_width + object_viewport_extent, w - 2 * panel_border_width, h - object_viewport_extent - 3 * panel_border_width);
+		object_viewport = ivec4(panel_border_width, panel_border_width, video_viewport[2], object_viewport_extent);
 	}
 	video_aspect = float(video_viewport[2]) / video_viewport[3];
 	object_aspect = float(object_viewport[2]) / object_viewport[3];
@@ -501,5 +501,5 @@ void TmoTA_drawable::draw(cgv::render::context& ctx, int object_idx, int appeara
 #include <cgv/base/register.h>
 
 #ifdef REGISTER_SHADER_FILES
-#include <label_tool_shader_inc.h>
+#include <TmoTA_shader_inc.h>
 #endif

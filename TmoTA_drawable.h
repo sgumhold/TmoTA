@@ -85,7 +85,7 @@ protected:
 	///
 	bool focus_current = false;
 	/// gamma for color intensity drop off at rectangle border
-	float border_gamma;
+	float rectangle_border_gamma;
 	/// shader program to render the video frame with the current object in focus
 	cgv::render::shader_program tex_prog;
 	/// shader program to render all other rectangles around objects that have been labeled in the current frame
@@ -99,7 +99,7 @@ protected:
 	/// object width scale
 	float object_width_scale = 0.95f;
 	/// width of border around viewports measured in pixels
-	int border_width = 5;
+	int panel_border_width = 5;
 	/// height of object time viewport in pixels
 	int object_viewport_extent = 200;
 	/// viewport definition of video image viewport

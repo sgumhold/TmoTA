@@ -169,7 +169,7 @@ void TmoTA_interactable::finish_frame(cgv::render::context& ctx)
 		rect_prog.set_uniform(ctx, "video_tex", 0);
 		rect_prog.set_uniform(ctx, "frame_tex", 0);
 		rect_prog.set_uniform(ctx, "use_video_tex", use_video_tex);
-		rect_prog.set_uniform(ctx, "border_width", 1.0f);
+		rect_prog.set_uniform(ctx, "rectangle_border_width", 1.0f);
 		rect_prog.set_uniform(ctx, "mix_factor", std::min(0.5f, 0.5f * mix_factor));
 		rect_prog.set_uniform(ctx, "aspect", aspect);
 		rect_prog.set_uniform(ctx, "width", (int)width);
@@ -181,7 +181,7 @@ void TmoTA_interactable::finish_frame(cgv::render::context& ctx)
 		int ci = rect_prog.get_color_index();
 		cgv::render::attribute_array_binding::enable_global_array(ctx, pi);
 		cgv::render::attribute_array_binding::enable_global_array(ctx, ci);
-		rect_prog.set_uniform(ctx, "border_gamma", 1.0f);
+		rect_prog.set_uniform(ctx, "rectangle_border_gamma", 1.0f);
 		cgv::render::attribute_array_binding::set_global_attribute_array(ctx, pi, &r, 1);
 		cgv::render::attribute_array_binding::set_global_attribute_array(ctx, ci, &c, 1);
 		glDrawArrays(GL_POINTS, 0, 1);
@@ -336,13 +336,13 @@ bool TmoTA_interactable::self_reflect(cgv::reflect::reflection_handler& rh)
 		rh.reflect_member("auto_center_view", auto_center_view) &&
 		rh.reflect_member("restrict_animation", restrict_animation) &&
 		rh.reflect_member("fps", fps) &&
-		rh.reflect_member("border_gamma", border_gamma) &&
+		rh.reflect_member("rectangle_border_gamma", rectangle_border_gamma) &&
 		rh.reflect_member("mix_factor", mix_factor) &&
 		rh.reflect_member("focus_current", focus_current) &&
 		rh.reflect_member("span_rectangle_from_center", span_rectangle_from_center) &&
 		rh.reflect_member("object_viewport_extent", object_viewport_extent) &&
 		rh.reflect_member("vertical_viewport_split", vertical_viewport_split) &&
-		rh.reflect_member("border_width", border_width) &&
+		rh.reflect_member("panel_border_width", panel_border_width) &&
 		rh.reflect_member("object_type_file_name", object_type_file_name) &&
 		rh.reflect_member("rectangle_border_width", rectangle_border_width) &&
 		rh.reflect_member("frame_idx", frame_idx);
@@ -425,7 +425,6 @@ bool TmoTA_interactable::start_asynchronous_read(const std::string& file_name)
 	if (read_trd) {
 		if (read_trd->is_running())
 			read_trd->kill();
-		//delete read_trd;
 		read_trd = 0;
 	}
 	read_trd = new read_thread(this, file_name, "uint8[R,G,B]");
@@ -840,18 +839,21 @@ void TmoTA_interactable::create_gui()
 	*/
 	if (begin_tree_node("Config", mix_factor, false, "level=3")) {
 		align("\a");
-		add_member_control(this, "fps", fps, "value_slider", "min=5;max=300;ticks=true;log=true;tooltip='adjust with@b <PgDn|PgUp>'");
-		add_member_control(this, "span_rectangle_from_center", span_rectangle_from_center, "toggle");
-		add_member_control(this, "mix_factor", mix_factor, "value_slider", "min=0;max=1;ticks=true");
-		add_member_control(this, "pick_width", pick_width, "value_slider", "min=1;max=50;ticks=true");
-		add_member_control(this, "extent_appearance", extent_appearance, "check");		
-		add_member_control(this, "border_width", rectangle_border_width, "value_slider", "min=0;max=10;ticks=true");
-		add_member_control(this, "border_gamma", border_gamma, "value_slider", "min=0.1;max=10;log=true;ticks=true");
-		add_member_control(this, "object_viewport_extent", object_viewport_extent, "value_slider", "min=100;max=500;ticks=true");
-		add_member_control(this, "object_width_scale", object_width_scale, "value_slider", "min=0;max=1;ticks=true");
-		add_member_control(this, "vertical_viewport_split", vertical_viewport_split, "check");
-		//add_member_control(this, "use_video_tex", use_video_tex, "toggle");
-		add_member_control(this, "font_color", font_color);
+		add_decorator("Interaction", "heading", "level=3");
+		add_member_control(this, "fps", fps, "value_slider", "min=5;max=300;ticks=true;log=true;tooltip='adjust playback fps with@b <PgDn|PgUp>'");
+		add_member_control(this, "span_rectangle_from_center", span_rectangle_from_center, "toggle", "tooltip='whether to span rectangles from center or from other corner'");
+		add_member_control(this, "pick_width", pick_width, "value_slider", "min=1;max=50;ticks=true;tooltip='pixel distance for picking rectangle edges'");
+		add_member_control(this, "extent_appearance", extent_appearance, "check", "tooltip='whether extension of appearance adds new rectangle or overwrites last'");
+		add_decorator("Drawing", "heading", "level=3");
+		add_member_control(this, "mix_factor", mix_factor, "value_slider", "min=0;max=1;ticks=true;tooltip='mixing strength of rectangle color (limited to 0.5 in interior)'");
+		add_member_control(this, "rectangle_border_width", rectangle_border_width, "value_slider", "min=0;max=10;ticks=true;tooltip='width of opacity ramp at bounding edges'");
+		add_member_control(this, "rectangle_border_gamma", rectangle_border_gamma, "value_slider", "min=0.1;max=10;log=true;ticks=true;tooltip='gamma adjustment of opacity ramps'");
+		add_member_control(this, "font_color", font_color, "", "tooltip='font color for action tooltip'");
+		add_decorator("Layout", "heading", "level=3");
+		add_member_control(this, "vertical_viewport_split", vertical_viewport_split, "check", "tooltip='whether to split viewport vertically or horizontally'");
+		add_member_control(this, "object_viewport_extent", object_viewport_extent, "value_slider", "min=100;max=500;ticks=true;tooltip='height (horizontal split) or width (vertical split) of object view'");
+		add_member_control(this, "object_width_scale", object_width_scale, "value_slider", "min=0;max=1;ticks=true;tooltip='percentual width of object view'");
+		add_member_control(this, "panel_border_width", panel_border_width, "value_slider", "min=0;max=10;ticks=true;tooltip='border width in pixels between view panels'");
 		align("\b");
 		end_tree_node(mix_factor);
 	}
@@ -1647,11 +1649,13 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 				select_frame(me.get_x());
 			break;
 			case cgv::gui::MA_ENTER:
+				update_over_mode(me.get_x(), me.get_y(), in_video_viewport);
 #ifdef DEBUG_EVENTS
 				std::cout << "enter" << std::endl;
 #endif
 				break;
 			case cgv::gui::MA_LEAVE:
+				update_over_mode(me.get_x(), me.get_y(), false);
 #ifdef DEBUG_EVENTS
 				std::cout << "leave" << std::endl;
 #endif

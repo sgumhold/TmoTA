@@ -22,8 +22,8 @@ uniform int height;
 uniform int fst_pixel_idx;
 uniform float aspect;
 uniform float mix_factor = 0.2;
-uniform float border_width = 2.0;
-uniform float border_gamma = 4.0;
+uniform float rectangle_border_width = 2.0;
+uniform float rectangle_border_gamma = 4.0;
 uniform float texcoord_w;
 
 //***** begin interface of fragment.glfs ***********************************
@@ -69,7 +69,7 @@ void main()
 	}
 	if (max_dist != -100.0) {
 		bool is_over = false;
-		if (max_dist < border_width && max_dist >= 0.0) {
+		if (max_dist < rectangle_border_width && max_dist >= 0.0) {
 			if (use_min_x && ((x_over_mode & 1) != 0) && pix.x < min_x)
 				is_over = true;
 			if (use_min_y && ((y_over_mode & 1) != 0) && pix.y < min_y)
@@ -79,10 +79,10 @@ void main()
 			if (use_max_y && ((y_over_mode & 2) != 0) && pix.y > max_y)
 				is_over = true;
 		}
-		float bd_gamma = border_gamma;
+		float bd_gamma = rectangle_border_gamma;
 		if (is_over)
 			bd_gamma *= 0.3;
-		float border_lambda = pow(max(0.0, 1.0 - min(border_width,max_dist)/border_width), bd_gamma);
+		float border_lambda = pow(max(0.0, 1.0 - min(rectangle_border_width,max_dist)/rectangle_border_width), bd_gamma);
 		float lambda = max(mix_factor, border_lambda);
 		tex_col = mix(tex_col,color_fs,lambda);
 	}
