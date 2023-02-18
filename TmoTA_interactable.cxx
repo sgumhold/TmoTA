@@ -87,18 +87,6 @@ void TmoTA_interactable::draw(cgv::render::context& ctx)
 
 void TmoTA_interactable::finish_frame(cgv::render::context& ctx)
 {
-	if (!over_mode.in_video_viewport)
-		return;
-	bool need_text =
-		over_mode.nr_objects > 1 ||
-		(over_mode.mode < 1 && over_mode.new_object_idx == -1) ||
-		over_mode.mode == 1;
-	if (!need_text)
-		return;
-//	if (over_mode.nr_objects < 2 && (over_mode.mode > 1 || over_mode.new_object_idx != -1))
-//		return;
-	if (left_clicked || right_clicked)
-		return;
 	std::stringstream ss;
 	int ai = -1;
 	bool last = true;
@@ -145,7 +133,7 @@ void TmoTA_interactable::finish_frame(cgv::render::context& ctx)
 	std::string s = ss.str();
 
 	// render top viewport
-	if (ai != -1) {
+	if (ai > -1) {
 		const auto& app = objects[object_idx].appearences[ai];
 		vec4 r;
 		if (last)
@@ -196,6 +184,18 @@ void TmoTA_interactable::finish_frame(cgv::render::context& ctx)
 		ctx.pop_modelview_matrix();
 		ctx.pop_window_transformation_array();
 	}
+
+	if (!over_mode.in_video_viewport)
+		return;
+	bool need_text =
+		over_mode.nr_objects > 1 ||
+		(over_mode.mode < 1 && over_mode.new_object_idx == -1) ||
+		over_mode.mode == 1;
+	if (!need_text)
+		return;
+	if (left_clicked || right_clicked)
+		return;
+
 	if (ff.empty()) {
 		cgv::media::font::enumerate_font_names(font_names);
 		for (font_idx = 0; font_idx < font_names.size(); ++font_idx)
@@ -454,6 +454,22 @@ void TmoTA_interactable::ensure_centered_view()
 	}
 }
 
+void TmoTA_interactable::ensure_open_appearance_removal()
+{
+	if (open_appearance_object_idx == -1)
+		return;
+	auto& apps = objects[open_appearance_object_idx].appearences;
+	apps.erase(apps.begin() + open_appearance_idx);
+	if (apps.empty()) {
+		objects.erase(objects.begin() + open_appearance_object_idx);
+		if (object_idx >= open_appearance_object_idx)
+			--object_idx;
+	}
+	open_appearance_object_idx = -1;
+	open_appearance_idx = -1;
+	post_recreate_gui();
+}
+
 /// callback where we handle changes of member variables
 void TmoTA_interactable::on_set(void* member_ptr)
 {
@@ -481,18 +497,8 @@ void TmoTA_interactable::on_set(void* member_ptr)
 		post_recreate_gui();
 	}
 	if (member_ptr == &object_idx) {
-		if (open_appearance_object_idx != -1 && object_idx != open_appearance_object_idx) {
-			auto& apps = objects[open_appearance_object_idx].appearences;
-			apps.erase(apps.begin() + open_appearance_idx);
-			if (apps.empty()) {
-				objects.erase(objects.begin() + open_appearance_object_idx);
-				if (object_idx >= open_appearance_object_idx)
-					--object_idx;
-			}
-			open_appearance_object_idx = -1;
-			open_appearance_idx = -1;
-			post_recreate_gui();
-		}
+		if (object_idx != open_appearance_object_idx)
+			ensure_open_appearance_removal();
 		update_over_mode(over_mode.mouse_x, over_mode.mouse_y, over_mode.in_video_viewport);
 		if (object_idx == -1)
 			appearance_idx = -1;
@@ -1141,8 +1147,28 @@ bool TmoTA_interactable::select_frame(int x)
 	return true;
 }
 
+int TmoTA_interactable::determine_location(float pix, float p0, float p1) const
+{
+	float Lb = p0 - pick_width;
+	float Ub = p1 + pick_width;
+	int d = std::min(pick_width, (int)std::max(0.0f, p1 - p0 + 1 - pick_width) / 2);
+	float lb = p0 + d;
+	float ub = p1 - d;
+	int loc = -1;
+	if (pix >= Lb && pix <= Ub) {
+		if (pix < lb)
+			loc = 1;
+		else if (pix < ub)
+			loc = 0;
+		else
+			loc = 2;
+	}
+	return loc;
+}
+
 int TmoTA_interactable::determine_mode(int x, int y, int object_idx, int frame_idx, int& x_mode, int& y_mode, int* x_off_ptr, int* y_off_ptr, int* width_ptr, int* height_ptr) const
 {
+	// find object's appearance for given frame index 
 	const auto& obj = objects[object_idx];
 	const appearance* app_ptr = 0;
 	size_t ai;
@@ -1155,67 +1181,57 @@ int TmoTA_interactable::determine_mode(int x, int y, int object_idx, int frame_i
 			break;
 		}
 	}
+	// no appearance found
 	if (!app_ptr)
 		return -(int)ai;
+	// try to extract appearance rectangle
 	vec4 p;
-	if (extract_value(app_ptr->x_min_values, frame_idx, p[0]) &&
-		extract_value(app_ptr->y_min_values, frame_idx, p[1]) &&
-		extract_value(app_ptr->x_max_values, frame_idx, p[2]) &&
-		extract_value(app_ptr->y_max_values, frame_idx, p[3])) {
-		vec2 pix;
-		if (width_ptr)
-			*width_ptr = (int)p[2] - (int)p[0] + 1;
-		if (height_ptr)
-			*height_ptr = (int)p[3] - (int)p[1] + 1;
-
-		x_mode = y_mode = mod_mode(false, false);
-		if (find_picked_pixel(x, y, pix)) {
-			if (x_off_ptr)
-				*x_off_ptr = int(p[0] - pix(0));
-			if (y_off_ptr)
-				*y_off_ptr = int(p[1] - pix(1));
-			float Lb = p[0] - pick_width;
-			float Ub = p[2] + pick_width;
-			int d = std::min(pick_width,(int)std::max(0.0f, p[2] - p[0] + 1 - pick_width) / 2);
-			float lb = p[0] + d;
-			float ub = p[2] - d;
-			int x_loc = -1;
-			if (pix(0) >= Lb && pix(0) <= Ub) {
-				if (pix(0) < lb)
-					x_loc = 1;
-				else if (pix(0) < ub)
-					x_loc = 0;
-				else
-					x_loc = 2;
-			}
-			Lb = (float)p[1] - pick_width;
-			Ub = (float)p[3] + pick_width;
-			d = std::min(pick_width,(int)std::max(0.0f, p[3] - p[1] + 1 - pick_width) / 2);
-			lb = (float)p[1] + d;
-			ub = (float)p[3] - d;
-			int y_loc = -1;
-			if (pix(1) >= Lb && pix(1) <= Ub) {
-				if (pix(1) < lb)
-					y_loc = 1;
-				else if (pix(1) < ub)
-					y_loc = 0;
-				else
-					y_loc = 2;
-			}
-			if (x_loc == -1 || y_loc == -1)
-				x_mode = y_mode = 0;
-			else if (x_loc == 0 && y_loc == 0)
-				x_mode = y_mode = 3;
-			else {
-				x_mode = x_loc;
-				y_mode = y_loc;
-			}
-			return 3;
-		}
-		return 2;
-	}
-	else 
+	if (!extract_value(app_ptr->x_min_values, frame_idx, p[0]) ||
+		!extract_value(app_ptr->y_min_values, frame_idx, p[1]) ||
+		!extract_value(app_ptr->x_max_values, frame_idx, p[2]) ||
+		!extract_value(app_ptr->y_max_values, frame_idx, p[3]))
+		// and in case of failure (appearance is currently defined) return mode 1 
 		return 1;
+
+	// extract rectangle extend
+	if (width_ptr)
+		*width_ptr = (int)p[2] - (int)p[0] + 1;
+	if (height_ptr)
+		*height_ptr = (int)p[3] - (int)p[1] + 1;
+
+	// clear x and y modes 
+	x_mode = y_mode = mod_mode(false, false);
+
+	// attempt to extract video pixel position
+	vec2 pix;
+	if (!find_picked_pixel(x, y, pix))
+		// and return 2 in case of failure
+		return 2;
+
+	// determine offset of picked video pixel relative to top left corner of rectangle
+	if (x_off_ptr)
+		*x_off_ptr = int(p[0] - pix(0));
+	if (y_off_ptr)
+		*y_off_ptr = int(p[1] - pix(1));
+
+	// determine location relative to rectangle edges along x and y direction
+	int x_loc = determine_location(pix(0), p[0], p[2]);
+	int y_loc = determine_location(pix(1), p[1], p[3]);
+	// in case of outside with respect to x or y
+	if (x_loc == -1 || y_loc == -1)
+		// not over any edge
+		x_mode = y_mode = 0;
+	// in case of inside rectangle in both directions
+	else if (x_loc == 0 && y_loc == 0)
+		// configure over all edges to allow moving rectangle
+		x_mode = y_mode = 3;
+	// otherwise set to be influenced edges for x and y separately
+	else {
+		x_mode = x_loc;
+		y_mode = y_loc;
+	}
+	// return mode 3 
+	return 3;
 }
 
 std::vector<int> TmoTA_interactable::find_objects(int mx, int my) const
@@ -1270,16 +1286,25 @@ mouse_over_mode TmoTA_interactable::determine_over_mode(int x, int y) const
 	over_mode.x_mode = mod_mode(false, false);
 	over_mode.y_mode = mod_mode(false, false);
 	over_mode.mode = 0;
+	// of current object is selected, determine over mode based on its current rectangle
 	if (object_idx != -1) {
 		over_mode.mode = determine_mode(x, y, object_idx, frame_idx, over_mode.x_mode, over_mode.y_mode,
 			&over_mode.rect_offset_x, &over_mode.rect_offset_y, &over_mode.rect_width, &over_mode.rect_height);
 	}
-	if (object_idx == -1 || over_mode.mode != 3 || (over_mode.x_mode == mod_mode(false, false) && over_mode.y_mode == mod_mode(false, false))) {
-		if (!focus_current) {
+	// if no current object selected, no current rectangle available or mouse outside of current rectangle determine whether mouse is over other object
+	bool check_for_other_objects = object_idx == -1;
+	if (!check_for_other_objects && over_mode.mode == 3 && over_mode.x_mode == mod_mode(false, false) && over_mode.y_mode == mod_mode(false, false))
+		check_for_other_objects = !focus_current;
+	//if (!check_for_other_objects && over_mode.mode != 3)
+	//	check_for_other_objects = true;
+	if (check_for_other_objects) {
+//	if (object_idx == -1 || over_mode.mode != 3 || (over_mode.x_mode == mod_mode(false, false) && over_mode.y_mode == mod_mode(false, false))) {
+//		// 
+//		if (object_idx == -1 || over_mode.mode < 1 || (over_mode.mode == 3 && !focus_current)) {
 			std::vector<int> obj_idxs = find_objects(x, y);
 			over_mode.nr_objects = (int)obj_idxs.size();
 			over_mode.new_object_idx = obj_idxs.empty() ? -1 : obj_idxs[obj_layer % obj_idxs.size()];
-		}
+//		}
 	}
 	//show_over_mode(over_mode, rectangle_key);
 	return over_mode;
@@ -1288,7 +1313,7 @@ mouse_over_mode TmoTA_interactable::determine_over_mode(int x, int y) const
 void TmoTA_interactable::update_over_mode(int x, int y, bool in_video_viewport)
 {
 	mouse_over_mode new_over_mode;
-	if (in_video_viewport)
+	if (in_video_viewport || open_appearance_idx != -1)
 		new_over_mode = determine_over_mode(x, y);
 	new_over_mode.in_video_viewport = in_video_viewport;
 	new_over_mode.connect_left = left_ctrl;
@@ -1298,7 +1323,7 @@ void TmoTA_interactable::update_over_mode(int x, int y, bool in_video_viewport)
 		over_mode.y_mode != new_over_mode.y_mode ||
 		over_mode.connect_left != new_over_mode.connect_left ||
 		over_mode.connect_right != new_over_mode.connect_right ||
-		((over_mode.nr_objects > 0 || over_mode.mode <= 0) && (over_mode.mouse_x != new_over_mode.mouse_x || over_mode.mouse_y != new_over_mode.mouse_y)))
+		((over_mode.nr_objects > 0 || over_mode.mode <= 1) && (over_mode.mouse_x != new_over_mode.mouse_x || over_mode.mouse_y != new_over_mode.mouse_y)))
 		post_redraw();
 	over_mode = new_over_mode;
 }
@@ -1348,9 +1373,6 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 		// switch over action of mouse event
 		switch (me.get_action()) {
 		case cgv::gui::MA_MOVE:
-#ifdef DEBUG_EVENTS
-			std::cout << "move" << std::endl;
-#endif
 			potential_left_click = false;
 			potential_right_click = false;
 			if (rectangle_key != 0 || x_mode != mod_mode(false, false) || y_mode != mod_mode(false, false)) {
@@ -1358,31 +1380,10 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 				std::cout << "update (" << rectangle_key << ":" << me.get_x() << "," << me.get_y() << ")" << std::endl;
 				return true;
 			}
-			else {
-				//int new_x_over_mode = mod_mode(false, false);
-				//int new_y_over_mode = mod_mode(false, false);
-				//if (in_video_viewport) {
-					//std::cout << "MOVE" << std::endl;
-					update_over_mode(me.get_x(), me.get_y(), in_video_viewport);
-					//if (object_idx == -1 ||
-					//    3 != determine_mode(me.get_x(), me.get_y(), object_idx, frame_idx, new_x_over_mode, new_y_over_mode) ||
-					//	(new_x_over_mode == mod_mode(false, false) && new_y_over_mode == mod_mode(false, false))) {
-					//	std::vector<int> obj_idxs = find_objects(me.get_x(), me.get_y());
-					//	new_object_idx = obj_idxs.empty() ? -1 : obj_idxs[obj_layer % obj_idxs.size()];
-					//	//std::cout << new_object_idx << std::endl;
-					//}
-				//}
-				//if (new_x_over_mode != x_over_mode || new_y_over_mode != y_over_mode) {
-				//	x_over_mode = new_x_over_mode; 
-				//	y_over_mode = new_y_over_mode;
-				//	post_redraw();
-				//}
-			}
+			else
+				update_over_mode(me.get_x(), me.get_y(), in_video_viewport);
 			break;
 		case cgv::gui::MA_PRESS:
-#ifdef DEBUG_EVENTS
-			std::cout << "press" << std::endl;
-#endif
 			if (me.get_button() == cgv::gui::MB_RIGHT_BUTTON) {
 				potential_right_click = true;
 				right_clicked = true;
@@ -1396,7 +1397,6 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 					select_frame(me.get_x());
 				pressed_in_object_viewport = in_object_viewport;
 				pressed_in_video_viewport = in_video_viewport;
-				//std::cout << "PRESS" << std::endl;
 				if (in_video_viewport && object_idx != -1) {
 					if (over_mode.mode == 3 &&
 						(over_mode.x_mode != mod_mode(false, false) || over_mode.y_mode != mod_mode(false, false))) {
@@ -1457,14 +1457,15 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 							}
 							else if (objects[object_idx].appearences.size() > 0 && (int)frame_idx > objects[object_idx].appearences.back().lst_frame_idx)
 								handle_rectangle_modifier_key(cgv::gui::KA_PRESS, 'a');
-							else
+							else {
+								ensure_open_appearance_removal();
 								handle_rectangle_modifier_key(cgv::gui::KA_PRESS, 'o');
+							}
 						}
 						else if (over_mode.mode == 1)
 							handle_rectangle_modifier_key(cgv::gui::KA_PRESS, 'v');
 						else {
-							//std::vector<int> obj_idxs = find_objects(me.get_x(), me.get_y());
-							if (over_mode.new_object_idx == -1) {
+							if (over_mode.new_object_idx != -1) {
 								object_idx = over_mode.new_object_idx;
 								on_set(&object_idx);
 								if (object_idx != -1)
@@ -1473,47 +1474,10 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 							}
 						}
 					}
-					// find appearance
-					//bool found = false;
-					//int xo = 0, yo = 0, w = 1, h = 1;
-					//int mode = determine_mode(me.get_x(), me.get_y(), object_idx, frame_idx, x_mode, y_mode, &xo, &yo, &w, &h);
-					//if (mode == 3 && (x_mode != mod_mode(false, false) || y_mode != mod_mode(false, false))) {
-					//	update_member(&x_mode);
-					//	update_member(&y_mode);
-					//	if (x_mode == mod_mode(true, true) && y_mode == mod_mode(true, true)) {
-					//		rect_width = w;
-					//		rect_height = h;
-					//	}
-					//	update_location(me.get_x(), me.get_y());
-					//	potential_left_click = false;
-					//}
-					//else {
-					//	if (mode == 0 && objects[object_idx].appearences.size() > 0 && (int)frame_idx > objects[object_idx].appearences.back().lst_frame_idx)
-					//		handle_rectangle_modifier_key(cgv::gui::KA_PRESS, 'a');
-					//	else if (mode == 1)
-					//		handle_rectangle_modifier_key(cgv::gui::KA_PRESS, 'v');
-					//	else {
-					//		std::vector<int> obj_idxs = find_objects(me.get_x(), me.get_y());
-					//		if (obj_idxs.empty()) {
-					//			object_idx = -1;
-					//			on_set(&object_idx);
-					//			potential_left_click = false;
-					//		}
-					//		else {
-					//			object_idx = obj_idxs[obj_layer % obj_idxs.size()];
-					//			on_set(&object_idx);
-					//			on_set(&frame_idx);
-					//			potential_left_click = false;
-					//		}
-					//	}
-					//}
 				}
 			}
 			return true;
 		case cgv::gui::MA_RELEASE:
-#ifdef DEBUG_EVENTS
-			std::cout << "release" << std::endl;
-#endif
 			if (me.get_button() == cgv::gui::MB_RIGHT_BUTTON) {
 				if (in_video_viewport && potential_right_click) {
 					vec2 p;
@@ -1562,39 +1526,6 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 					}
 				}
 				potential_left_click = false;
-
-				//else if (x_mode != mod_mode(false, false) || y_mode != mod_mode(false, false)) {
-				//	x_mode = mod_mode(false, false);
-				//	y_mode = mod_mode(false, false);
-				//	update_member(&x_mode);
-				//	update_member(&y_mode);
-				//}
-				//if (potential_left_click) {
-				//	if (pressed_in_video_viewport) {
-				//		pressed_in_video_viewport = false;
-				//		std::vector<int> obj_idxs = find_objects(me.get_x(), me.get_y());
-				//		object_idx = obj_idxs.empty() ? -1 : obj_idxs[obj_layer % obj_idxs.size()];
-				//		on_set(&object_idx);
-				//		if (object_idx != -1)
-				//			on_set(&frame_idx);
-				//	}
-				//	if (pressed_in_object_viewport) {
-				//		pressed_in_object_viewport = false;
-				//		if (select_frame(me.get_x())) {
-				//			if (objects.size() > 0) {
-				//				float of = (1.0f - float(ctx_ptr->get_height() - me.get_y() - object_viewport[1]) / object_viewport[3]) * objects.size();
-				//				float oo = floor(of) + 0.5f;
-				//				if (fabs(of - oo) < 0.3f)
-				//					object_idx = int(floor(of));
-				//				else
-				//					object_idx = -1;
-				//				on_set(&object_idx);
-				//				select_frame(me.get_x());
-				//			}
-				//		}
-				//	}
-				//}
-				//potential_left_click = false;
 			}
 			return true;
 		case cgv::gui::MA_WHEEL:
@@ -1617,9 +1548,6 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 			}
 			return true;
 		case cgv::gui::MA_DRAG:
-#ifdef DEBUG_EVENTS
-			std::cout << "drag" << std::endl;
-#endif
 			potential_right_click = false;
 			potential_left_click = false;
 			if (pressed_in_video_viewport && me.get_button_state() == cgv::gui::MB_LEFT_BUTTON) {
@@ -1648,15 +1576,9 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 			break;
 			case cgv::gui::MA_ENTER:
 				update_over_mode(me.get_x(), me.get_y(), in_video_viewport);
-#ifdef DEBUG_EVENTS
-				std::cout << "enter" << std::endl;
-#endif
 				break;
 			case cgv::gui::MA_LEAVE:
 				update_over_mode(me.get_x(), me.get_y(), false);
-#ifdef DEBUG_EVENTS
-				std::cout << "leave" << std::endl;
-#endif
 				break;
 		}
 		return false;
@@ -1664,18 +1586,6 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 	if (e.get_kind() != cgv::gui::EID_KEY)
 		return false;
 	cgv::gui::key_event& ke = static_cast<cgv::gui::key_event&>(e);
-
-	//switch (ke.get_key()) {
-	//case cgv::gui::KEY_Num_1: return handle_modifier_key(mod_mode(true , false), mod_mode(false, true ), ke.get_action());
-	//case cgv::gui::KEY_Num_2: return handle_modifier_key(mod_mode(false, false), mod_mode(false, true), ke.get_action());
-	//case cgv::gui::KEY_Num_3: return handle_modifier_key(mod_mode(false, true), mod_mode(false, true), ke.get_action());
-	//case cgv::gui::KEY_Num_4: return handle_modifier_key(mod_mode(true, false), mod_mode(false, false), ke.get_action());
-	//case cgv::gui::KEY_Num_6: return handle_modifier_key(mod_mode(false, true), mod_mode(false, false), ke.get_action());
-	//case cgv::gui::KEY_Num_7: return handle_modifier_key(mod_mode(true, false), mod_mode(true, false), ke.get_action());
-	//case cgv::gui::KEY_Num_8: return handle_modifier_key(mod_mode(false, false), mod_mode(true, false), ke.get_action());
-	//case cgv::gui::KEY_Num_9: return handle_modifier_key(mod_mode(false, true), mod_mode(true, false), ke.get_action());
-	//case cgv::gui::KEY_Num_5: return handle_rectangle_modifier_key(ke.get_action(), 'C');
-	//}
 	if (ke.get_action() == cgv::gui::KA_RELEASE) {
 		switch (ke.get_key()) {
 		case cgv::gui::KEY_Left_Ctrl:
@@ -1882,9 +1792,36 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 
 void TmoTA_interactable::stream_help(std::ostream& os)
 {
-	os << "label_tool: navigation keys";
+	os << "TmoTA: View: <RightMouseButton>...pan, <MouseWheel>...zoom, <Ctrl-MouseWheel>...cycle occlusion\n";
+	os << "   FrameIdx: <Left/Right>...-1|+1, <S-Left|S-Right>...-10|+10, <Home|End>...goto fst|last frame\n";
+	os << "    Animate:  <Space>...toggle, <PgDn|PgUp> or <X|W>...slow down|speed up, <R>...Restrict to App\n";
+	os << "   Features:  <C>...view centering, <F>...focus current, slow down|speed up, <R>...Restrict to App";
 }
 void TmoTA_interactable::stream_stats(std::ostream& os)
 {
-	os << "label_tool: x_mode=" << over_mode.x_mode << ", y_mode=" << over_mode.y_mode;
+	os << "TmoTA: Frame=Idx" << frame_idx;
+	if (object_idx != -1) {
+		const auto& obj = objects[object_idx];
+		os << " Obj" << object_idx << ":" << obj.get_type_name();
+		if (appearance_idx != -1) {
+			const auto& app = obj.appearences[appearance_idx];
+			os << " App" << appearance_idx << "(" << app.fst_frame_idx << "-" << app.lst_frame_idx << ")";
+			if (open_appearance_object_idx == object_idx && open_appearance_idx == appearance_idx)
+				os << "->[]";
+			else {
+				vec4 p;
+				if (extract_value(app.x_min_values, frame_idx, p[0]) &&
+					extract_value(app.y_min_values, frame_idx, p[1]) &&
+					extract_value(app.x_max_values, frame_idx, p[2]) &&
+					extract_value(app.y_max_values, frame_idx, p[3]))
+					os << "[" << p[0] << "," << p[1] << ":" << p[2] << "," << p[3] << "]";
+				else
+					os << "[]";
+			}
+		}
+	}
+//	os << over_mode.mode << "|" << (rectangle_key == 0 ? ' ' : rectangle_key) << "> " 
+//		<< over_mode.x_mode << "," << over_mode.y_mode
+//		<< " [" << over_mode.rect_offset_x << "," << over_mode.rect_offset_y << ":" << over_mode.rect_width << "x" << over_mode.rect_height << "] "
+//		<< over_mode.new_object_idx << "|" << over_mode.nr_objects << std::endl;
 }

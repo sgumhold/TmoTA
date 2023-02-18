@@ -10,9 +10,15 @@
 
 struct mouse_over_mode
 {
+	/// what mouse is over: 
+	/// 0 and less ... no appearance found, 
+	/// 1 ... no appearance rectangle available to to appearance in creation
+	/// 2 ... mouse points outside of video frame
+	/// 3 ... over current rectangle of current object's appearance
 	int mode = 0;
-	int mouse_x = 0, mouse_y = 0;
+	/// for x and y direction, over which edges mouse is over
 	int x_mode = 0, y_mode = 0;
+	int mouse_x = 0, mouse_y = 0;
 	int rect_offset_x = 0, rect_offset_y = 0;
 	int rect_width = 1, rect_height = 1;
 	int new_object_idx = -1;
@@ -177,8 +183,9 @@ protected:
 	int new_object_idx = -1;
 
 	mouse_over_mode over_mode;
-
+	/// determine mouse_over_mode for given mouse pixel location
 	mouse_over_mode determine_over_mode(int x, int y) const;
+	/// update current mouse over_mode based on mouse pixel location and whether mouse is in video viewport
 	void update_over_mode(int x, int y, bool in_video_viewport);
 
 	bool pressed_in_video_viewport = false;
@@ -186,6 +193,7 @@ protected:
 	int pick_width = 25;
 	int obj_layer = 0;
 protected:
+	void ensure_open_appearance_removal();
 	void do_ensure_control_value(std::vector<control_value>& video_storage, int frame_idx, float value);
 	/// coordinate transformation functions
 	float model_x_to_texcoord_u(float x) const { return 0.5f * (x / aspect + 1.0f); }
@@ -213,7 +221,9 @@ protected:
 	bool find_picked_texcoord(int mouse_x, int mouse_y, vec2& tc) const;
 	/// find picked video pixel location from mouse pixel location or return false if mouse points outside of video frame
 	bool find_picked_pixel(int mouse_x, int mouse_y, vec2& pix) const;
-	/// determine mouse interaction modes
+	/// determine relative location of video pixel coordinate pix to rectangle edges p0 and p1 (left and right or top and bottom)
+	int determine_location(float pix, float p0, float p1) const;
+	/// given position, selected object and frame index, determine mouse interaction mode along x and y direction as well as rectangle offset, width and height
 	int determine_mode(int x, int y, int object_idx, int frame_idx, int& x_mode, int& y_mode, int* x_off_ptr = 0, int* y_off_ptr = 0, int* width_ptr = 0, int* height_ptr = 0) const;
 	/// find objects under mouse pointer
 	std::vector<int> find_objects(int mx, int my) const;
