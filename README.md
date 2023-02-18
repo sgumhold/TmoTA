@@ -13,7 +13,7 @@ For use of the tool, please have a look at the license file LICENSE.
 ## installation
 - download archive with precompiled executable
   - Windows: https://cloudstore.zih.tu-dresden.de/index.php/s/fZmdCSMyekbSonq
-  - Linux:
+  - Linux: soon
 - optionally configure TmoTA executable by editing the file TmoTA.cfg (see comments inside)
 - ensure that ffmpeg executable is found by operating system or download and copy executable from ffmpeg site to same directory as executable of TmoTA
 - optionally download archive with sample videos and labelings used for the user studies in the CHI paper: https://cloudstore.zih.tu-dresden.de/index.php/s/XoPxe36MyzdJXfm
