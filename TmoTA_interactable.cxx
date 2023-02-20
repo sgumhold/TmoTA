@@ -473,6 +473,10 @@ void TmoTA_interactable::ensure_open_appearance_removal()
 /// callback where we handle changes of member variables
 void TmoTA_interactable::on_set(void* member_ptr)
 {
+	if (member_ptr == &animate) {
+		if (animate)
+			last_t = trig.get_current_time();
+	}
 	if (member_ptr == &object_type_file_name) {
 		if (read_object_type_definition(object_type_file_name))
 			post_recreate_gui();
@@ -1739,9 +1743,7 @@ bool TmoTA_interactable::handle(cgv::gui::event& e)
 		break;
 	case cgv::gui::KEY_Space:
 		animate = !animate;
-		if (animate)
-			last_t = trig.get_current_time();
-		update_member(&animate);
+		on_set(&animate);
 		return true;
 	case 'R':
 		restrict_animation = !restrict_animation;
