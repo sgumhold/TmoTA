@@ -90,7 +90,10 @@ To minimize labelling effort, a good strategy is to navigate frames to a spot wi
 - `R` to restrict ping pong playback to selected object appearance
 - `C` to toggle view centering
 
+## Bug List
+- other object press-drag-release interaction sometimes does not work (instead new object is created that can be removed again by pressing Escape)
+- videos with 90 degree rotation are not read correctly. Currently, you need to convert to single frame images to use TmoTA on such videos
+
 ## ToDo List
 - support undo and redo
 - support insertion of appearances
-- fix other object press-drag-release interaction bug
