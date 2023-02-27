@@ -91,8 +91,8 @@ To minimize labelling effort, a good strategy is to navigate frames to a spot wi
 - `C` to toggle view centering
 
 ## Bug List
-- other object press-drag-release interaction sometimes does not work (instead new object is created that can be removed again by pressing Escape)
-- videos with 90 degree rotation are not read correctly. Currently, you need to convert to single frame images to use TmoTA on such videos
+- 23.02.2023 press-drag-release interaction sometimes does not work (instead new object is created that can be removed again by pressing Escape)
+- *26.02.2023 videos with 90 degree rotation are not read correctly. Currently, you need to convert to single frame images to use TmoTA on such videos* (**fixed** on 27.02.2023 within cgv framework)
 
 ## ToDo List
 - support undo and redo
