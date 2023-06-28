@@ -2,7 +2,7 @@
 # TmoTA
 Tool for 2D multiple object Tracking Annotation introduced in the paper:
 
-*Marzan Tasnim Oyshi, Sebastian Vogt, Stefan Gumhold: TmoTA: Simple, Highly Responsive Tool for Multiple Object Tracking Annotation; conditionally accepted to CHI 2023*
+*Oyshi, Marzan Tasnim, Sebastian Vogt, and Stefan Gumhold. "TmoTA: Simple, Highly Responsive Tool for Multiple Object Tracking Annotation." Proceedings of the 2023 CHI Conference on Human Factors in Computing Systems. 2023*
 
 For use of the tool, please have a look at the license file LICENSE.
 
